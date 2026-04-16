@@ -1,6 +1,7 @@
 package com.example.webrtc.handler;
 
 import com.example.webrtc.model.SignalMessage;
+import com.example.webrtc.service.PersistenceService;
 import com.example.webrtc.service.RoomService;
 import com.example.webrtc.service.UserService;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -26,11 +27,14 @@ public class SignalHandler extends TextWebSocketHandler {
     private final ObjectMapper objectMapper;
     private final RoomService roomService;
     private final UserService userService;
+    private final PersistenceService persistenceService;
 
-    public SignalHandler(ObjectMapper objectMapper, RoomService roomService, UserService userService) {
+    public SignalHandler(ObjectMapper objectMapper, RoomService roomService,
+                         UserService userService, PersistenceService persistenceService) {
         this.objectMapper = objectMapper;
         this.roomService = roomService;
         this.userService = userService;
+        this.persistenceService = persistenceService;
     }
 
     @Override
@@ -67,10 +71,13 @@ public class SignalHandler extends TextWebSocketHandler {
             case "join" -> handleJoin(session, signalMessage);
             case "leave" -> handleLeave(session, signalMessage);
             case "chat" -> handleChat(session, signalMessage);
+            case "danmaku" -> handleDanmaku(session, signalMessage);
             case "offer", "answer", "candidate" -> handleRelay(session, signalMessage);
             default -> sendError(session, "Unsupported message type: " + signalMessage.getType());
         }
     }
+
+    // ── join ─────────────────────────────────────────────────────────────────
 
     private void handleJoin(WebSocketSession session, SignalMessage message) throws IOException {
         if (!hasText(message.getRoomId()) || !hasText(message.getFrom())) {
@@ -90,6 +97,11 @@ public class SignalHandler extends TextWebSocketHandler {
         userService.register(userId, session);
         roomService.joinRoom(roomId, userId);
 
+        // Persist user + room (async, non-blocking)
+        persistenceService.ensureUser(userId);
+        persistenceService.ensureRoom(roomId);
+        persistenceService.saveSystemEvent(roomId, userId, userId + " joined the room");
+
         // Send current room user list to the joining user.
         Set<String> usersInRoom = roomService.getUsersInRoom(roomId);
         List<String> otherUsers = usersInRoom.stream()
@@ -106,6 +118,8 @@ public class SignalHandler extends TextWebSocketHandler {
         log.info("User '{}' joined room '{}'  (room size: {})", userId, roomId, usersInRoom.size());
     }
 
+    // ── leave ────────────────────────────────────────────────────────────────
+
     private void handleLeave(WebSocketSession session, SignalMessage message) throws IOException {
         String userId = message.getFrom();
         if (!hasText(userId)) {
@@ -120,11 +134,14 @@ public class SignalHandler extends TextWebSocketHandler {
         roomService.removeUser(userId);
 
         if (hasText(roomId)) {
+            persistenceService.saveSystemEvent(roomId, userId, userId + " left the room");
             broadcastToRoom(roomId, userId, buildMessage("user-left", roomId, null, null,
                     Map.of("userId", userId)));
             log.info("User '{}' explicitly left room '{}'", userId, roomId);
         }
     }
+
+    // ── chat ─────────────────────────────────────────────────────────────────
 
     private void handleChat(WebSocketSession session, SignalMessage message) throws IOException {
         if (!hasText(message.getRoomId()) || !hasText(message.getFrom())) {
@@ -142,12 +159,51 @@ public class SignalHandler extends TextWebSocketHandler {
             return;
         }
 
+        String text = String.valueOf(message.getData().get("text"));
+        long ts = System.currentTimeMillis();
+
+        // Persist message (async)
+        persistenceService.saveMessage(message.getRoomId(), message.getFrom(), "chat", text);
+
         // Broadcast chat to ALL users in the room (including sender for confirmation).
         SignalMessage chatMsg = buildMessage("chat", message.getRoomId(), message.getFrom(), null,
-                Map.of("text", message.getData().get("text"),
-                       "timestamp", System.currentTimeMillis()));
+                Map.of("text", text, "timestamp", ts));
         broadcastToRoom(message.getRoomId(), null, chatMsg);
     }
+
+    // ── danmaku (bullet screen) ──────────────────────────────────────────────
+
+    private void handleDanmaku(WebSocketSession session, SignalMessage message) throws IOException {
+        if (!hasText(message.getRoomId()) || !hasText(message.getFrom())) {
+            sendError(session, "Danmaku requires roomId and from.");
+            return;
+        }
+
+        if (message.getData() == null || !message.getData().containsKey("content")) {
+            sendError(session, "Danmaku requires data.content.");
+            return;
+        }
+
+        if (!roomService.isUserInRoom(message.getRoomId(), message.getFrom())) {
+            sendError(session, "Sender has not joined the room.");
+            return;
+        }
+
+        String content = String.valueOf(message.getData().get("content"));
+        long ts = System.currentTimeMillis();
+
+        // Persist danmaku (async)
+        persistenceService.saveMessage(message.getRoomId(), message.getFrom(), "danmaku", content);
+
+        // Broadcast to all room members (including sender)
+        SignalMessage danmakuMsg = buildMessage("danmaku", message.getRoomId(), message.getFrom(), null,
+                Map.of("content", content,
+                       "color", message.getData().getOrDefault("color", "#ffffff"),
+                       "timestamp", ts));
+        broadcastToRoom(message.getRoomId(), null, danmakuMsg);
+    }
+
+    // ── relay (offer / answer / candidate) ───────────────────────────────────
 
     private void handleRelay(WebSocketSession session, SignalMessage message) throws IOException {
         if (!hasText(message.getRoomId()) || !hasText(message.getFrom()) || !hasText(message.getTo())) {
@@ -184,6 +240,8 @@ public class SignalHandler extends TextWebSocketHandler {
         }
     }
 
+    // ── cleanup ──────────────────────────────────────────────────────────────
+
     private void cleanupSession(WebSocketSession session) {
         String userId = userService.removeSession(session);
         if (!hasText(userId)) {
@@ -195,6 +253,7 @@ public class SignalHandler extends TextWebSocketHandler {
         roomService.removeUser(userId);
 
         if (hasText(roomId)) {
+            persistenceService.saveSystemEvent(roomId, userId, userId + " disconnected");
             broadcastToRoom(roomId, null, buildMessage("user-left", roomId, null, null,
                     Map.of("userId", userId)));
             log.info("User '{}' left room '{}'", userId, roomId);

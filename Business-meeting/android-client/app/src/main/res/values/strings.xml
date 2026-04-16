@@ -1,0 +1,16 @@
+<resources>
+    <string name="app_name">WebRTC Meet</string>
+    <string name="hint_room_id">Room ID</string>
+    <string name="hint_user_name">Your Name</string>
+    <string name="hint_server_ip">Server IP (e.g. 192.168.3.36)</string>
+    <string name="btn_join">Join Room</string>
+    <string name="btn_hang_up">Hang Up</string>
+    <string name="btn_send">Send</string>
+    <string name="hint_chat_message">Type a message…</string>
+    <string name="label_connecting">Connecting…</string>
+    <string name="label_connected">Connected</string>
+    <string name="label_disconnected">Disconnected</string>
+    <string name="error_empty_fields">Please fill in all fields</string>
+    <string name="error_permission">Camera and microphone permissions are required</string>
+    <string name="label_local_video">You</string>
+</resources>

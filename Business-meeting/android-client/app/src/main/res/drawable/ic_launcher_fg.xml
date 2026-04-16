@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Camera icon shape -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M40,38h28c2.2,0 4,1.8 4,4v20c0,2.2 -1.8,4 -4,4h-28c-2.2,0 -4,-1.8 -4,-4v-20c0,-2.2 1.8,-4 4,-4zM54,58c4.4,0 8,-3.6 8,-8s-3.6,-8 -8,-8s-8,3.6 -8,8s3.6,8 8,8zM54,56c3.3,0 6,-2.7 6,-6s-2.7,-6 -6,-6s-6,2.7 -6,6s2.7,6 6,6z" />
+    <!-- Signal waves -->
+    <path
+        android:fillColor="#00D2D3"
+        android:pathData="M72,42l4,-4c0.6,-0.6 0.6,-1.4 0,-2l0,0c-0.6,-0.6 -1.4,-0.6 -2,0l-4,4c-0.6,0.6 -0.6,1.4 0,2l0,0c0.6,0.6 1.4,0.6 2,0z" />
+</vector>

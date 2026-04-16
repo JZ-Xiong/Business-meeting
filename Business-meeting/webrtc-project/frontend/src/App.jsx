@@ -4,6 +4,7 @@ import TopBar from './components/TopBar';
 import VideoGrid from './components/VideoGrid';
 import ControlBar from './components/ControlBar';
 import Sidebar from './components/Sidebar';
+import DanmakuOverlay from './components/DanmakuOverlay';
 import StatusToast from './components/StatusToast';
 import useLocalStream from './hooks/useLocalStream';
 import useWebSocket from './hooks/useWebSocket';
@@ -151,6 +152,12 @@ export default function App() {
             activeSpeaker={activeSpeaker}
             speakingUsers={speakingUsers}
             roomUsers={wsHook.roomUsers}
+          />
+
+          {/* Danmaku overlay on top of video grid */}
+          <DanmakuOverlay
+            messages={wsHook.danmakuMessages}
+            onSendDanmaku={wsHook.sendDanmaku}
           />
         </div>
 

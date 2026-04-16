@@ -10,6 +10,7 @@ export default function useWebSocket() {
   const [isConnected, setIsConnected] = useState(false);
   const [roomUsers, setRoomUsers] = useState([]);
   const [chatMessages, setChatMessages] = useState([]);
+  const [danmakuMessages, setDanmakuMessages] = useState([]);
   const [toasts, setToasts] = useState([]);
 
   const socketRef = useRef(null);
@@ -103,6 +104,17 @@ export default function useWebSocket() {
         if (handlers.onChat) handlers.onChat(msg);
         break;
 
+      case 'danmaku':
+        setDanmakuMessages((prev) => [...prev.slice(-100), {
+          id: Date.now() + Math.random(),
+          from: msg.from,
+          content: msg.data?.content || '',
+          color: msg.data?.color || '#ffffff',
+          timestamp: msg.data?.timestamp || Date.now(),
+        }]);
+        if (handlers.onDanmaku) handlers.onDanmaku(msg);
+        break;
+
       case 'offer':
         if (handlers.onOffer) handlers.onOffer(msg);
         break;
@@ -151,6 +163,11 @@ export default function useWebSocket() {
     sendSignal({ type: 'chat', roomId, from: userId, data: { text } });
   }, [sendSignal]);
 
+  const sendDanmaku = useCallback((content, color = '#ffffff') => {
+    const { roomId, userId } = roomInfoRef.current;
+    sendSignal({ type: 'danmaku', roomId, from: userId, data: { content, color } });
+  }, [sendSignal]);
+
   const sendLeave = useCallback(() => {
     const { roomId, userId } = roomInfoRef.current;
     sendSignal({ type: 'leave', roomId, from: userId });
@@ -166,6 +183,7 @@ export default function useWebSocket() {
     setIsConnected(false);
     setRoomUsers([]);
     setChatMessages([]);
+    setDanmakuMessages([]);
     reconnectAttemptRef.current = 0;
   }, []);
 
@@ -183,11 +201,13 @@ export default function useWebSocket() {
     isConnected,
     roomUsers,
     chatMessages,
+    danmakuMessages,
     toasts,
     connect,
     disconnect,
     sendSignal,
     sendChat,
+    sendDanmaku,
     sendLeave,
     addToast,
   };
